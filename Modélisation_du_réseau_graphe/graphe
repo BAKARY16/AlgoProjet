@@ -1,0 +1,197 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* 
+  Définition des types énumérés pour les nœuds et routes
+ */
+typedef enum {
+    HUB,        // Centre de distribution principal
+    RELAIS,     // Point de relais intermédiaire
+    CLIENT      // Point de livraison final
+} NodeType;
+
+typedef enum {
+    ASPHALTE,   // Route asphaltée
+    LATÉRITE,   // Route en latérite
+    PISTE       // Piste non stabilisée
+} RoadType;
+
+/*
+ * Structure pour les attributs dynamiques
+ * Pour  modéliser les variations temporelles
+ */
+typedef struct DynamicAttr {
+    char* periode;                  // Période concernée comme "matin", "saison_pluie"
+    float coefficient_temps;        // Coefficient multiplicateur du temps
+    struct DynamicAttr* next;       // Pointeur vers la prochaine variation
+} DynamicAttr;
+
+/* 
+ * Structure d'une arête (connexion entre nœuds)
+ * il stocke tous les attributs multiples requis : distance, temps, coût, etc.
+ */
+typedef struct Edge {
+    int dest_id;                    // ID du nœud destination
+    float distance;                 // Distance en kilomètres
+    float temps_base;               // Temps de parcours de base en minutes
+    float cout;                     // Coût monétaire du trajet
+    RoadType type_route;            // Type de route (asphalte, latérite, piste)
+    float fiabilite;                // Niveau de fiabilité (0.0 à 1.0)
+    int restrictions;               // Restrictions codées en bits
+    DynamicAttr* variations;        // Liste des variations temporelles
+    struct Edge* next;              // Pointeur vers la prochaine arête (liste chaînée)
+} Edge;
+
+/*
+ * Structure d'un nœud (point du réseau) représente un hub, relais ou client avec ses caractéristiques
+ */
+typedef struct Vertex {
+    int id;                         // Identifiant unique
+    NodeType type;                  // Type de nœud
+    char nom[50];                   // Nom du point
+    float capacite;                 // Capacité de stockage
+    int ouverture;                  // Heure d'ouverture 
+    int fermeture;                  // Heure de fermeture
+    float coord[2];                 // Coordonnées GPS [latitude, longitude]
+    Edge* edges;                    // Liste des arêtes sortantes (liste chaînée)
+} Vertex;
+
+/*
+ * Structure principale du graphe
+ * Contient l'ensemble des nœuds du réseau
+ */
+typedef struct Graph {
+    int V;                          // Nombre total de nœuds
+    Vertex* vertices;               // Tableau des nœuds
+} Graph;
+
+/* 
+ * Fonction de création d'un graphe
+ *  permet d’allouer la mémoire nécessaire et initialise la structure
+ */
+Graph* creerGraphe(int V) {
+    Graph* graphe = (Graph*)malloc(sizeof(Graph));
+    graphe->V = V;
+    graphe->vertices = (Vertex*)calloc(V, sizeof(Vertex));
+    return graphe;
+}
+
+/*
+ * Fonction d'ajout d'un nœud va initialise un nœud avec toutes ses caractéristiques
+ */
+void ajouterVertex(Graph* graphe, int id, NodeType type, const char* nom, 
+                  float capacite, int ouverture, int fermeture, float lat, float lon) {
+    if (id >= graphe->V) {
+        printf("Erreur : ID de nœud invalide.\n");
+        return;
+    }
+    graphe->vertices[id].id = id;
+    graphe->vertices[id].type = type;
+    strcpy(graphe->vertices[id].nom, nom);
+    graphe->vertices[id].capacite = capacite;
+    graphe->vertices[id].ouverture = ouverture;
+    graphe->vertices[id].fermeture = fermeture;
+    graphe->vertices[id].coord[0] = lat;
+    graphe->vertices[id].coord[1] = lon;
+    graphe->vertices[id].edges = NULL;  // Initialise la liste d'arêtes à vide
+}
+
+/*
+ * Fonction d'ajout d'une arête
+ * on crée une connexion entre deux nœuds avec tous les attributs requis
+ */
+void ajouterEdge(Graph* graphe, int src_id, int dest_id, float distance, 
+                float temps_base, float cout, RoadType type, float fiabilite, int restrictions) {
+    if (src_id >= graphe->V || dest_id >= graphe->V) {
+        printf("Erreur : ID de nœud invalide.\n");
+        return;
+    }
+    
+    // Création de la nouvelle arête
+    Edge* nouvelleEdge = (Edge*)malloc(sizeof(Edge));
+    nouvelleEdge->dest_id = dest_id;
+    nouvelleEdge->distance = distance;
+    nouvelleEdge->temps_base = temps_base;
+    nouvelleEdge->cout = cout;
+    nouvelleEdge->type_route = type;
+    nouvelleEdge->fiabilite = fiabilite;
+    nouvelleEdge->restrictions = restrictions;
+    nouvelleEdge->variations = NULL;    // Initialise sans variations
+    nouvelleEdge->next = graphe->vertices[src_id].edges;
+    graphe->vertices[src_id].edges = nouvelleEdge;
+}
+
+/*
+ * Fonction d'ajout de variation temporelle
+ * on va moduler les attributs selon différentes périodes
+ */
+void ajouterVariation(Edge* edge, const char* periode, float coefficient) {
+    DynamicAttr* nouvelleVariation = (DynamicAttr*)malloc(sizeof(DynamicAttr));
+    nouvelleVariation->periode = strdup(periode);
+    nouvelleVariation->coefficient_temps = coefficient;
+    nouvelleVariation->next = edge->variations;
+    edge->variations = nouvelleVariation;
+}
+
+/*
+ * Fonction d'affichage du graphe
+ * ici on affiche la liste d'adjacence pour vérification
+ */
+void afficherGraphe(Graph* graphe) {
+    for (int i = 0; i < graphe->V; i++) {
+        Vertex v = graphe->vertices[i];
+        printf("[%d] %s (Type: %s) -> ", v.id, v.nom, 
+               (v.type == HUB) ? "HUB" : (v.type == RELAIS) ? "RELAIS" : "CLIENT");
+        
+        // Parcours de la liste d'arêtes
+        Edge* edge = v.edges;
+        while (edge) {
+            printf("%d (%.1f km, %.0f min, %.1f XOF)", 
+                   edge->dest_id, edge->distance, edge->temps_base, edge->cout);
+            
+            // Affichage des variations si elles existent
+            DynamicAttr* var = edge->variations;
+            if (var) {
+                printf(" [Variations: ");
+                while (var) {
+                    printf("%s(×%.1f) ", var->periode, var->coefficient_temps);
+                    var = var->next;
+                }
+                printf("]");
+            }
+            
+            edge = edge->next;
+            if (edge) printf(", ");
+        }
+        printf("\n");
+    }
+}
+
+/*
+ * Fonction principale de démonstration
+ */
+int main() {
+    // 1. Création d'un graphe avec 3 nœuds
+    Graph* reseau = creerGraphe(3);
+    
+    // 2. Ajout des nœuds (hubs, relais, clients)
+    ajouterVertex(reseau, 0, HUB, "Hub Abidjan", 1000, 600, 2200, 5.3167, -4.0333);
+    ajouterVertex(reseau, 1, RELAIS, "Relais Yamoussoukro", 500, 800, 2000, 6.8276, -5.2893);
+    ajouterVertex(reseau, 2, CLIENT, "Client Bouaké", 50, 900, 1700, 7.6900, -5.0300);
+    
+    // 3. Ajout des arêtes avec leurs attributs
+    ajouterEdge(reseau, 0, 1, 248.5, 180, 25000, ASPHALTE, 0.95, 3);
+    ajouterEdge(reseau, 1, 2, 85.0, 70, 8500, LATÉRITE, 0.75, 1);
+    
+    // 4. Ajout de variations temporelles
+    ajouterVariation(reseau->vertices[0].edges, "matin", 1.5);    // +50% le matin
+    ajouterVariation(reseau->vertices[0].edges, "soir", 1.3);     // +30% le soir
+    ajouterVariation(reseau->vertices[1].edges, "pluie", 2.0);    // ×2 en saison des pluies
+    
+    // 5. Affichage du graphe
+    printf("\n=== REPRÉSENTATION DU RÉSEAU LOGISTIQUE ===\n");
+    afficherGraphe(reseau);
+    
+    return 0;
+}

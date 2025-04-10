@@ -1,0 +1,27 @@
+void floydWarshall(Graph* g, float dist[][g->V], int pred[][g->V]) {
+    // Initialisation
+    for (int i = 0; i < g->V; i++) {
+        for (int j = 0; j < g->V; j++) {
+            dist[i][j] = (i == j) ? 0 : INFINITY;
+            pred[i][j] = -1;
+        }
+        Edge* edge = g->vertices[i].edges;
+        while (edge) {
+            dist[i][edge->dest_id] = edge->cout;
+            pred[i][edge->dest_id] = i;
+            edge = edge->next;
+        }
+    }
+
+    // Mise à jour des distances
+    for (int k = 0; k < g->V; k++) {
+        for (int i = 0; i < g->V; i++) {
+            for (int j = 0; j < g->V; j++) {
+                if (dist[i][k] + dist[k][j] < dist[i][j]) {
+                    dist[i][j] = dist[i][k] + dist[k][j];
+                    pred[i][j] = pred[k][j];
+                }
+            }
+        }
+    }
+}

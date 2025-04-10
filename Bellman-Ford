@@ -1,0 +1,35 @@
+bool bellmanFordAdapte(Graph* g, int src, float dist[], int pred[]) {
+    // Initialisation
+    for (int i = 0; i < g->V; i++) {
+        dist[i] = INFINITY;
+        pred[i] = -1;
+    }
+    dist[src] = 0;
+
+    // Relaxation des arêtes
+    for (int i = 1; i < g->V; i++) {
+        for (int u = 0; u < g->V; u++) {
+            Edge* edge = g->vertices[u].edges;
+            while (edge) {
+                float cout_actuel = edge->cout * getCoefficientTemps(edge); // Fonction externe
+                if (dist[u] != INFINITY && dist[u] + cout_actuel < dist[edge->dest_id]) {
+                    dist[edge->dest_id] = dist[u] + cout_actuel;
+                    pred[edge->dest_id] = u;
+                }
+                edge = edge->next;
+            }
+        }
+    }
+
+    // Détection des cycles négatifs
+    for (int u = 0; u < g->V; u++) {
+        Edge* edge = g->vertices[u].edges;
+        while (edge) {
+            if (dist[u] != INFINITY && dist[u] + edge->cout < dist[edge->dest_id]) {
+                return false; // Cycle négatif détecté
+            }
+            edge = edge->next;
+        }
+    }
+    return true;
+}

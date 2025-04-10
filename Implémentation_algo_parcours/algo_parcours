@@ -1,0 +1,118 @@
+//Implémentation du DFS (Parcours en Profondeur)
+
+// on explore tous les nœuds en suivant récursivement chaque branche jusqu'à sa fin.
+#include <stdbool.h>
+typedef struct StackNode {
+    int vertex_id;
+    struct StackNode* next;
+} StackNode;
+
+void push(StackNode** top, int vertex_id) {
+    StackNode* newNode = (StackNode*)malloc(sizeof(StackNode));
+    newNode->vertex_id = vertex_id;
+    newNode->next = *top;
+    *top = newNode;
+}
+
+int pop(StackNode** top) {
+    if (*top == NULL) return -1;
+    StackNode* temp = *top;
+    int vertex_id = temp->vertex_id;
+    *top = (*top)->next;
+    free(temp);
+    return vertex_id;
+}
+
+// DFS itératif avec pile
+void DFS(Graph* graphe, int start_id) {
+    bool* visited = (bool*)calloc(graphe->V, sizeof(bool));
+    StackNode* stack = NULL;
+    push(&stack, start_id);
+
+    while (stack != NULL) {
+        int current_id = pop(&stack);
+        if (!visited[current_id]) {
+            visited[current_id] = true;
+            printf("Visité : %s\n", graphe->vertices[current_id].nom);
+
+            // Empiler tous les voisins non visités
+            Edge* edge = graphe->vertices[current_id].edges;
+            while (edge != NULL) {
+                if (!visited[edge->dest_id] && edge->actif) {
+                    push(&stack, edge->dest_id);
+                }
+                edge = edge->next;
+            }
+        }
+    }
+    free(visited);
+}
+
+
+// ---------------------------------------------------
+
+
+//Implémentation du BFS (Parcours en Largeur)
+
+// On explore les nœuds niveau par niveau.
+typedef struct QueueNode {
+    int vertex_id;
+    struct QueueNode* next;
+} QueueNode;
+
+typedef struct Queue {
+    QueueNode *front, *rear;
+} Queue;
+
+Queue* creerQueue() {
+    Queue* q = (Queue*)malloc(sizeof(Queue));
+    q->front = q->rear = NULL;
+    return q;
+}
+
+void enqueue(Queue* q, int vertex_id) {
+    QueueNode* newNode = (QueueNode*)malloc(sizeof(QueueNode));
+    newNode->vertex_id = vertex_id;
+    newNode->next = NULL;
+    if (q->rear == NULL) {
+        q->front = q->rear = newNode;
+    } else {
+        q->rear->next = newNode;
+        q->rear = newNode;
+    }
+}
+
+int dequeue(Queue* q) {
+    if (q->front == NULL) return -1;
+    QueueNode* temp = q->front;
+    int vertex_id = temp->vertex_id;
+    q->front = q->front->next;
+    if (q->front == NULL) q->rear = NULL;
+    free(temp);
+    return vertex_id;
+}
+
+// BFS avec file
+void BFS(Graph* graphe, int start_id) {
+    bool* visited = (bool*)calloc(graphe->V, sizeof(bool));
+    Queue* q = creerQueue();
+    enqueue(q, start_id);
+    visited[start_id] = true;
+
+    while (q->front != NULL) {
+        int current_id = dequeue(q);
+        printf("Visité : %s\n", graphe->vertices[current_id].nom);
+
+        // Enfiler tous les voisins non visités
+        Edge* edge = graphe->vertices[current_id].edges;
+        while (edge != NULL) {
+            if (!visited[edge->dest_id] && edge->actif) {
+                enqueue(q, edge->dest_id);
+                visited[edge->dest_id] = true;
+            }
+            edge = edge->next;
+        }
+    }
+    free(visited);
+    free(q);
+}
